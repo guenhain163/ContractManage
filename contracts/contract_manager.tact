@@ -5,13 +5,11 @@ import "@stdlib/ownable";
 
 // **Structs:**
 /**
-  Participant is a person or an organization which is part of the group expense.
+  Phonebook is a person or an organization which is part of the group expense.
  */
-struct Participant {
+struct Phonebook {
   walletAddress: Address;
 	name: String;
-	// balance: Int as coins;
-	isValid: Bool;
 }
 
 /**
@@ -29,7 +27,7 @@ struct Expense {
 }
 
 /**
-  Payment is money transfer from one participant to another.
+  Payment is money transfer from one phonebook to another.
 	Payment can be use to settle a debt or a credit.
  */
 struct Payment {
@@ -37,23 +35,24 @@ struct Payment {
   amount: Int as coins;
   valueDate: Int as uint32;
   payer: Address;
-  payee: Address;
+  payee: Address; 
+  recipient: Address; // New field to store the recipient address
 }
 
-struct ParticipantList {
-  list: map<Int, Participant>;
+struct PhonebookList {
+  list: map<Int, Phonebook>;
   length: Int as uint64 = 0;
 }
 
 // **Messages:**
-message ParticipantCreate {
+message PhonebookCreate {
   walletAddress: Address;
 	name: String;
 	// balance: Int as coins;
 }
 
 message StatusChange {
-  participantId: Int as uint64;
+  phonebookId: Int as uint64;
   isValid: Bool;
 }
 
@@ -62,14 +61,20 @@ message Withdraw {
 	name: String;
 }
 
+message VerifyPhonebook {
+  walletAddress: Address;  // Address to be verified
+}
+
 contract ContractManager with Deployable {
   seqno: Int as uint64;
-  participants: ParticipantList;
-	const MinTonForStorage: Int = ton("0.01"); // enough for 1 KB of storage for 2.5 years
+  phonebooks: PhonebookList;
+	myWalletAddress: Address;
+  const MinTonForStorage: Int = ton("0.01"); // enough for 1 KB of storage for 2.5 years
 
-  init(seqno: Int) {
+  init(myWalletAddress: Address, seqno: Int) {
+    self.myWalletAddress = myWalletAddress;
     self.seqno = seqno;
-    self.participants = ParticipantList{list: emptyMap()};
+    self.phonebooks = PhonebookList{list: emptyMap()};
   }
 
 	receive(msg: Withdraw) {
@@ -83,34 +88,32 @@ contract ContractManager with Deployable {
     });
   }
 
-	receive(msg: ParticipantCreate) {
-		let length: Int =  self.participants.length + 1;
+	receive(msg: PhonebookCreate) {
+		let length: Int =  self.phonebooks.length + 1;
 
-    let participant: Participant = Participant {
+    let phonebook: Phonebook = Phonebook {
   		walletAddress: msg.walletAddress,
-			name: msg.name,
-			// balance: msg.balance,
-			isValid: true
+			name: msg.name
     };
 
-    self.participants.list.set(length, participant);
-    self.participants.length = length;
+    self.phonebooks.list.set(length, phonebook);
+    self.phonebooks.length = length;
   }
 
   // receive(msg: StatusChange) {
-  //   let participant: Participant = self.participants.list.get(msg.participantId)!!;
-  //   participant.isValid = msg.isValid;
-  //   self.participants.list.set(msg.participantId, null);
-  // 	self.participants.list.set(msg.participantId, participant);
+  //   let phonebook: Phonebook = self.phonebooks.list.get(msg.phonebookId)!!;
+  //   phonebook.isValid = msg.isValid;
+  //   self.phonebooks.list.set(msg.phonebookId, null);
+  // 	self.phonebooks.list.set(msg.phonebookId, phonebook);
   // }
 
-  get fun listParticipant(): ParticipantList {
-    return self.participants;
+  get fun listPhonebook(): PhonebookList {
+    return self.phonebooks;
   }
 
-	// get fun oneParticipantById(participantId: Int): Participant {
-  //   let participant: Participant = self.participants.list.get(participantId)!!;
-  //   return participant;
+	// get fun onePhonebookById(phonebookId: Int): Phonebook {
+  //   let phonebook: Phonebook = self.phonebooks.list.get(phonebookId)!!;
+  //   return phonebook;
   // }
 
 	get fun balance(): Int {
@@ -121,20 +124,20 @@ contract ContractManager with Deployable {
   //   return myBalance();
   // }
 	
-	get fun participant(waddress: Address): Participant?  {
-  	// Iterate through the map of participants
-		let participantId: Int = 1;
-		while (participantId <= self.participants.length) {
-			participantId = participantId + 1;
-			let participant: Participant = self.participants.list.get(participantId)!!; // Added semicolon
+	get fun phonebook(waddress: Address): Phonebook?  {
+  	// Iterate through the map of phonebooks
+		let phonebookId: Int = 1;
+		while (phonebookId <= self.phonebooks.length) {
+			phonebookId = phonebookId + 1;
+			let phonebook: Phonebook = self.phonebooks.list.get(phonebookId)!!; // Added semicolon
 
-			// Check if the participant's walletAddress matches the provided one
-			if (participant.walletAddress == waddress) {
-				return participant; // Participant found
+			// Check if the phonebook's walletAddress matches the provided one
+			if (phonebook.walletAddress == waddress) {
+				return phonebook; // Phonebook found
 			}
 		}
 
-  	// If no matching participant is found, return false
+  	// If no matching phonebook is found, return false
   	return null;
 	}
 }
