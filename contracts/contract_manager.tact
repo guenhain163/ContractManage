@@ -1,5 +1,5 @@
 import "@stdlib/deploy";
-import "@stdlib/ownable";
+import "./jetton";
 
 // **Data Types:**
 
@@ -7,98 +7,90 @@ import "@stdlib/ownable";
 /**
   Phonebook is a person or an organization which is part of the group expense.
  */
-struct Phonebook {
-  walletAddress: Address;
-	name: String;
-}
+// struct Phonebook {
+//   walletAddress: Address;
+// 	name: String;
+// }
 
-/**
-  Expense is cost incurred which will be pay back.
-  Expense has an impact on the balance for payer and payee only if payee give its agreement.
- */
-struct Expense {
-  title: String;
+// struct PhonebookList {
+//   list: map<Int, Phonebook>;
+//   length: Int as uint64 = 0;
+// }
+
+// // **Messages:**
+// message PhonebookCreate {
+//   walletAddress: Address;
+// 	name: String;
+// }
+
+// message StatusChange {
+//   phonebookId: Int as uint64;
+//   isValid: Bool;
+// }
+
+message TransferContact {
   amount: Int as coins;
-  valueDate: Int as uint32; 
-  creationDate: Int as uint32;
-  payer: Address;
-  payees: map<Int, Address>;
-  agreements: map<Address, Bool>;
+	receiver: String;
 }
 
-/**
-  Payment is money transfer from one phonebook to another.
-	Payment can be use to settle a debt or a credit.
- */
-struct Payment {
-  title: String;
+message TransferWallet {
   amount: Int as coins;
-  valueDate: Int as uint32;
-  payer: Address;
-  payee: Address; 
-  recipient: Address; // New field to store the recipient address
+	receiver: Address;
 }
 
-struct PhonebookList {
-  list: map<Int, Phonebook>;
-  length: Int as uint64 = 0;
-}
-
-// **Messages:**
-message PhonebookCreate {
-  walletAddress: Address;
-	name: String;
-	// balance: Int as coins;
-}
-
-message StatusChange {
-  phonebookId: Int as uint64;
-  isValid: Bool;
-}
-
-message Withdraw {
-  amount: Int as coins;
-	name: String;
-}
-
-message VerifyPhonebook {
-  walletAddress: Address;  // Address to be verified
-}
-
-contract ContractManager with Deployable {
+contract ContractManager with Jetton, Deployable {
   seqno: Int as uint64;
-  phonebooks: PhonebookList;
-	myWalletAddress: Address;
-  const MinTonForStorage: Int = ton("0.01"); // enough for 1 KB of storage for 2.5 years
+  // phonebooks: PhonebookList;
+	owner: Address;
+  // content: Cell;
 
-  init(myWalletAddress: Address, seqno: Int) {
-    self.myWalletAddress = myWalletAddress;
+  init(owner: Address, seqno: Int) {
+    self.owner = owner;
+    // self.content = content;
     self.seqno = seqno;
-    self.phonebooks = PhonebookList{list: emptyMap()};
+    // self.phonebooks = PhonebookList{list: emptyMap()};
   }
 
-	receive(msg: Withdraw) {
-    let amount: Int = min(msg.amount, myBalance() - context().value - self.MinTonForStorage);
-    require(amount > 0, "Insufficient balance");
-    send(SendParameters{
-      to: sender(),
-      bounce: true,
-      value: amount,
-      mode: SendRemainingValue + SendIgnoreErrors
-    });
+  receive() {
+    dump("empty message received");
   }
 
-	receive(msg: PhonebookCreate) {
-		let length: Int =  self.phonebooks.length + 1;
+  receive(msg: TransferWallet) {
+    let ctx: Context = context();
+    require(ctx.sender == self.owner, "Not owner");
 
-    let phonebook: Phonebook = Phonebook {
-  		walletAddress: msg.walletAddress,
-			name: msg.name
-    };
+    // Check if message has required fields (assuming Transfer message has receiver and amount)
+    require(msg.receiver != null && msg.amount > 0, "Missing receiver or amount");
 
-    self.phonebooks.list.set(length, phonebook);
-    self.phonebooks.length = length;
+    // Assuming mint function takes recipient address, amount, and optional source 
+    self.transferCoin(msg.receiver, msg.amount, self.owner);
   }
+
+	// receive(msg: TransferContact) {
+  //   let ctx: Context = context();
+  //   require(ctx.sender == self.owner, "Not owner");
+
+  //   // Check if message has required fields (assuming Transfer message has receiver and amount)
+  //   require(msg.receiver != null && msg.amount > 0, "Missing receiver or amount");
+
+  //   let phonebook: Phonebook? = self.byName(msg.receiver);
+  //   require(phonebook == null, "Receiver not found");
+
+  //   // Assuming mint function takes recipient address, amount, and optional source 
+  //   self.transferCoin((phonebook!!).walletAddress, msg.amount, self.owner);
+  // }
+
+	// receive(msg: PhonebookCreate) {
+	// 	let length: Int =  self.phonebooks.length + 1;
+
+  //   let phonebook: Phonebook = Phonebook {
+  // 		walletAddress: msg.walletAddress,
+	// 		name: msg.name
+  //   };
+
+  //   self.phonebooks.list.set(length, phonebook);
+  //   self.phonebooks.length = length;
+  // }
 
   // receive(msg: StatusChange) {
   //   let phonebook: Phonebook = self.phonebooks.list.get(msg.phonebookId)!!;
@@ -107,37 +99,50 @@ contract ContractManager with Deployable {
   // 	self.phonebooks.list.set(msg.phonebookId, phonebook);
   // }
 
-  get fun listPhonebook(): PhonebookList {
-    return self.phonebooks;
-  }
+  // get fun listPhonebook(): PhonebookList {
+  //   return self.phonebooks;
+  // }
 
 	// get fun onePhonebookById(phonebookId: Int): Phonebook {
   //   let phonebook: Phonebook = self.phonebooks.list.get(phonebookId)!!;
   //   return phonebook;
   // }
 
-	get fun balance(): Int {
-    return myBalance();
+	get fun balance(): String {
+    return myBalance().toCoinsString();
   }
 
-	// get fun balance(): Int {
-  //   return myBalance();
-  // }
-	
-	get fun phonebook(waddress: Address): Phonebook?  {
-  	// Iterate through the map of phonebooks
-		let phonebookId: Int = 1;
-		while (phonebookId <= self.phonebooks.length) {
-			phonebookId = phonebookId + 1;
-			let phonebook: Phonebook = self.phonebooks.list.get(phonebookId)!!; // Added semicolon
+  // fun byName(name: String): Phonebook?  {
+  // 	// Iterate through the map of phonebooks
+	// 	let phonebookId: Int = 1;
+	// 	while (phonebookId <= self.phonebooks.length) {
+	// 		phonebookId = phonebookId + 1;
+	// 		let phonebook: Phonebook = self.phonebooks.list.get(phonebookId)!!; // Added semicolon
 
-			// Check if the phonebook's walletAddress matches the provided one
-			if (phonebook.walletAddress == waddress) {
-				return phonebook; // Phonebook found
-			}
-		}
+	// 		// Check if the phonebook's walletAddress matches the provided one
+	// 		if (phonebook.name == name) {
+	// 			return phonebook; // Phonebook found
+	// 		}
+	// 	}
 
-  	// If no matching phonebook is found, return false
-  	return null;
-	}
+  // 	// If no matching phonebook is found, return false
+  // 	return null;
+	// }
+
+	// get fun phonebook(waddress: Address): Phonebook?  {
+  // 	// Iterate through the map of phonebooks
+	// 	let phonebookId: Int = 1;
+	// 	while (phonebookId <= self.phonebooks.length) {
+	// 		phonebookId = phonebookId + 1;
+	// 		let phonebook: Phonebook = self.phonebooks.list.get(phonebookId)!!; // Added semicolon
+
+	// 		// Check if the phonebook's walletAddress matches the provided one
+	// 		if (phonebook.walletAddress == waddress) {
+	// 			return phonebook; // Phonebook found
+	// 		}
+	// 	}
+
+  // 	// If no matching phonebook is found, return false
+  // 	return null;
+	// }
 }

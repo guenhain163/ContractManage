@@ -1,0 +1,10 @@
+{
+    "projects": [
+        {
+            "name": "ContractManager",
+            "path": "./constracts/contract_manager.tact",
+            "output": "./build",
+            "options": {}
+        }
+    ]
+}
